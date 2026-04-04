@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT 뉴스 AI 분석 대시보드 (v2)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #111827;
+    --bg3: #1a2235;
+    --border: rgba(99,179,237,0.15);
+    --border2: rgba(99,179,237,0.3);
+    --blue: #63b3ed;
+    --blue2: #90cdf4;
+    --cyan: #76e4f7;
+    --green: #68d391;
+    --amber: #f6ad55;
+    --red: #fc8181;
+    --purple: #b794f4;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(99,179,237,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,179,237,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+  header {
+    border-bottom: 1px solid var(--border); padding: 20px 0;
+    position: sticky; top: 0;
+    background: rgba(10,14,26,0.92); backdrop-filter: blur(12px); z-index: 100;
+  }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--blue), var(--purple)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-size: 16px; font-weight: 700; }
+  .logo-sub { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .status-badge { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(104,211,145,0.08); border: 1px solid rgba(104,211,145,0.2); border-radius: 20px; font-size: 12px; color: var(--green); font-family: var(--mono); }
+  .status-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .hero { padding: 48px 0 32px; text-align: center; }
+  .hero-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(183,148,244,0.08); border: 1px solid rgba(183,148,244,0.2); border-radius: 20px; font-size: 11px; color: var(--purple); font-family: var(--mono); margin-bottom: 20px; }
+  .hero h1 { font-size: 38px; font-weight: 700; line-height: 1.2; margin-bottom: 14px; letter-spacing: -1px; }
+  .hero h1 span { background: linear-gradient(90deg, var(--purple), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { font-size: 15px; color: var(--text2); max-width: 500px; margin: 0 auto 28px; line-height: 1.7; }
+  .controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 36px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; font-family: var(--sans); cursor: pointer; transition: all 0.2s; border: none; outline: none; }
+  .btn-primary { background: linear-gradient(135deg, #7c3aed, #3b82f6); color: #fff; box-shadow: 0 4px 20px rgba(124,58,237,0.3); }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(124,58,237,0.45); }
+  .btn-secondary { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--border2); color: var(--text); }
+  .btn-danger { background: rgba(252,129,129,0.1); color: var(--red); border: 1px solid rgba(252,129,129,0.2); }
+  .btn-danger:hover:not(:disabled) { background: rgba(252,129,129,0.18); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 28px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; display: flex; align-items: center; gap: 14px; }
+  .stat-icon { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; flex-shrink: 0; }
+  .stat-icon.blue { background: rgba(99,179,237,0.1); }
+  .stat-icon.green { background: rgba(104,211,145,0.1); }
+  .stat-icon.red { background: rgba(252,129,129,0.1); }
+  .stat-icon.purple { background: rgba(183,148,244,0.1); }
+  .stat-label { font-size: 11px; color: var(--text3); margin-bottom: 3px; font-family: var(--mono); }
+  .stat-value { font-size: 22px; font-weight: 700; font-family: var(--mono); }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.purple { color: var(--purple); }
+  .sentiment-bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin-bottom: 28px; background: var(--bg3); }
+  .sentiment-bar .pos { background: var(--green); }
+  .sentiment-bar .neu { background: var(--amber); }
+  .sentiment-bar .neg { background: var(--red); }
+  .sentiment-legend { display: flex; gap: 20px; justify-content: center; margin-bottom: 28px; font-size: 12px; font-family: var(--mono); }
+  .sentiment-legend span { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .section-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .count-badge { padding: 2px 10px; background: rgba(99,179,237,0.1); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--blue); font-family: var(--mono); }
+  .filter-tabs { display: flex; gap: 6px; }
+  .filter-tab { padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: var(--mono); cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text3); transition: all 0.2s; }
+  .filter-tab.active { background: rgba(99,179,237,0.1); color: var(--blue); border-color: var(--border2); }
+  .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 14px; margin-bottom: 40px; }
+  .news-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 18px; transition: all 0.2s; cursor: pointer; text-decoration: none; display: block; position: relative; overflow: hidden; }
+  .news-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; opacity: 0; transition: opacity 0.2s; }
+  .news-card.positive::before { background: var(--green); }
+  .news-card.negative::before { background: var(--red); }
+  .news-card.neutral::before { background: var(--amber); }
+  .news-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .news-card:hover::before { opacity: 1; }
+  .news-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .news-num { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .sentiment-badge { padding: 2px 8px; border-radius: 10px; font-size: 10px; font-family: var(--mono); font-weight: 500; }
+  .sentiment-badge.positive { background: rgba(104,211,145,0.12); color: var(--green); }
+  .sentiment-badge.negative { background: rgba(252,129,129,0.12); color: var(--red); }
+  .sentiment-badge.neutral { background: rgba(246,173,85,0.12); color: var(--amber); }
+  .news-title { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.6; margin-bottom: 8px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-summary { font-size: 12px; color: var(--cyan); line-height: 1.5; margin-bottom: 10px; padding: 8px 10px; background: rgba(118,228,247,0.04); border-radius: 6px; border-left: 2px solid rgba(118,228,247,0.2); }
+  .news-meta { display: flex; align-items: center; justify-content: space-between; }
+  .news-confidence { font-family: var(--mono); font-size: 10px; color: var(--text3); display: flex; align-items: center; gap: 6px; }
+  .confidence-bar { width: 40px; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
+  .confidence-fill { height: 100%; border-radius: 2px; }
+  .news-time { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .news-link { font-size: 11px; color: var(--blue); font-family: var(--mono); text-decoration: none; }
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); grid-column: 1/-1; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono); }
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 28px; }
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .news-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">🤖</div>
+        <div>
+          <div class="logo-text">IT 뉴스 AI 분석기</div>
+          <div class="logo-sub">v2 · GPT-4o-mini · Sentiment</div>
+        </div>
+      </div>
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="conn-status">연결 중...</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="hero">
+      <div class="hero-tag">🤖 AI 요약 + 감성 분석 · gpt-4o-mini</div>
+      <h1>IT 뉴스 <span>AI 분석</span><br>대시보드</h1>
+      <p>수집된 뉴스를 AI가 자동으로 요약하고<br>감성(긍정/부정/중립)을 분석합니다.</p>
+      <div class="controls">
+        <button class="btn btn-primary" id="crawl-btn" onclick="startCrawl()">
+          <span>🔍</span> 뉴스 수집
+        </button>
+        <button class="btn btn-secondary" onclick="loadNews()">
+          <span>🔄</span> 새로고침
+        </button>
+        <button class="btn btn-danger" onclick="clearNews()">
+          <span>🗑</span> 초기화
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon blue">📰</div>
+        <div><div class="stat-label">TOTAL</div><div class="stat-value blue" id="stat-total">—</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">🟢</div>
+        <div><div class="stat-label">POSITIVE</div><div class="stat-value green" id="stat-pos">—</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon red">🔴</div>
+        <div><div class="stat-label">NEGATIVE</div><div class="stat-value red" id="stat-neg">—</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">🤖</div>
+        <div><div class="stat-label">ANALYZED</div><div class="stat-value purple" id="stat-analyzed">—</div></div>
+      </div>
+    </div>
+
+    <div class="sentiment-bar" id="sentiment-bar"></div>
+    <div class="sentiment-legend">
+      <span><div class="legend-dot" style="background:var(--green)"></div> 긍정</span>
+      <span><div class="legend-dot" style="background:var(--amber)"></div> 중립</span>
+      <span><div class="legend-dot" style="background:var(--red)"></div> 부정</span>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">📋 AI 분석 결과 <span class="count-badge" id="news-count">0개</span></div>
+      <div class="filter-tabs">
+        <button class="filter-tab active" onclick="filterNews('all', this)">전체</button>
+        <button class="filter-tab" onclick="filterNews('positive', this)">긍정</button>
+        <button class="filter-tab" onclick="filterNews('neutral', this)">중립</button>
+        <button class="filter-tab" onclick="filterNews('negative', this)">부정</button>
+        <button class="filter-tab" onclick="filterNews('unanalyzed', this)">미분석</button>
+      </div>
+    </div>
+
+    <div class="news-grid" id="news-grid">
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div>뉴스가 없습니다</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">v2 · AI Sentiment Analysis · gpt-4o-mini · Supabase</div>
+</footer>
+
+<script>
+const SUPABASE_URL = 'https://jbtyhxhkzudbyguxluru.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidHloeGhrenVkYnlndXhsdXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNzUxMjMsImV4cCI6MjA4OTc1MTEyM30.CbHlcAhOnx-Fwag1OwfO3BH5IupeFMxgil4Wm6F67AU';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let allNews = [];
+let currentFilter = 'all';
+
+const RSS_FEEDS = [
+  'https://rss.zdnet.co.kr/zdnet/rss/news.xml',
+  'https://feeds.feedburner.com/bloter',
+  'https://rss.etnews.com/Section901.xml',
+];
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+async function checkConnection() {
+  try {
+    const { error } = await db.from('news_list').select('id', { count: 'exact', head: true });
+    if (error) throw error;
+    document.getElementById('conn-status').textContent = 'Supabase 연결됨';
+  } catch(e) {
+    document.getElementById('conn-status').textContent = '연결 오류';
+  }
+}
+
+async function loadNews() {
+  try {
+    const { data, count, error } = await db
+      .from('news_list')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    allNews = data || [];
+    updateStats(allNews, count);
+    renderNews(filterData(allNews, currentFilter));
+  } catch(e) {
+    console.error('Load error:', e);
+  }
+}
+
+function updateStats(data, total) {
+  const analyzed = data.filter(d => d.summary).length;
+  const pos = data.filter(d => d.sentiment === 'positive').length;
+  const neg = data.filter(d => d.sentiment === 'negative').length;
+  const neu = data.filter(d => d.sentiment === 'neutral').length;
+
+  document.getElementById('stat-total').textContent = total || 0;
+  document.getElementById('stat-pos').textContent = pos;
+  document.getElementById('stat-neg').textContent = neg;
+  document.getElementById('stat-analyzed').textContent = analyzed;
+
+  // 감성 분포 바
+  const sentTotal = pos + neg + neu;
+  const bar = document.getElementById('sentiment-bar');
+  if (sentTotal > 0) {
+    bar.innerHTML = `
+      <div class="pos" style="width:${(pos/sentTotal*100).toFixed(1)}%"></div>
+      <div class="neu" style="width:${(neu/sentTotal*100).toFixed(1)}%"></div>
+      <div class="neg" style="width:${(neg/sentTotal*100).toFixed(1)}%"></div>
+    `;
+  } else {
+    bar.innerHTML = '';
+  }
+}
+
+function filterData(data, filter) {
+  if (filter === 'all') return data;
+  if (filter === 'unanalyzed') return data.filter(d => !d.summary);
+  return data.filter(d => d.sentiment === filter);
+}
+
+function filterNews(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  const filtered = filterData(allNews, filter);
+  document.getElementById('news-count').textContent = `${filtered.length}개`;
+  renderNews(filtered);
+}
+
+function renderNews(items) {
+  const grid = document.getElementById('news-grid');
+  document.getElementById('news-count').textContent = `${items.length}개`;
+
+  if (!items.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div>표시할 뉴스가 없습니다</div></div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map((item, i) => {
+    const d = new Date(item.created_at);
+    const time = d.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const sentiment = item.sentiment || '';
+    const sentimentLabel = { positive: '긍정', negative: '부정', neutral: '중립' }[sentiment] || '';
+    const confidence = item.confidence;
+    const confPercent = confidence != null ? Math.round(confidence * 100) : 0;
+    const confColor = confidence >= 0.8 ? 'var(--green)' : confidence >= 0.6 ? 'var(--amber)' : 'var(--red)';
+
+    return `<a class="news-card ${sentiment}" href="${item.url}" target="_blank">
+      <div class="news-top">
+        <span class="news-num">#${String(i+1).padStart(2,'0')}</span>
+        ${sentiment ? `<span class="sentiment-badge ${sentiment}">${sentimentLabel}</span>` : '<span class="sentiment-badge" style="opacity:0.3">미분석</span>'}
+      </div>
+      <div class="news-title">${item.title}</div>
+      ${item.summary ? `<div class="news-summary">AI: ${item.summary}</div>` : ''}
+      <div class="news-meta">
+        <span class="news-time">${time}</span>
+        ${confidence != null ? `
+          <span class="news-confidence">
+            신뢰도 ${confPercent}%
+            <span class="confidence-bar"><span class="confidence-fill" style="width:${confPercent}%;background:${confColor}"></span></span>
+          </span>
+        ` : ''}
+      </div>
+    </a>`;
+  }).join('');
+}
+
+async function fetchRSS(feedUrl) {
+  const res = await fetch(CORS_PROXY + encodeURIComponent(feedUrl));
+  const text = await res.text();
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'text/xml');
+  const items = [];
+  for (const item of xml.querySelectorAll('item')) {
+    const title = item.querySelector('title')?.textContent?.trim();
+    const link = item.querySelector('link')?.textContent?.trim();
+    if (title && link && title.length > 5) items.push({ title, url: link });
+    if (items.length >= 20) break;
+  }
+  return items;
+}
+
+async function startCrawl() {
+  const btn = document.getElementById('crawl-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="animation:spin 1s linear infinite;display:inline-block">⟳</span> 수집 중...';
+
+  let collected = [];
+  for (const feed of RSS_FEEDS) {
+    try {
+      const items = await fetchRSS(feed);
+      if (items.length > 0) { collected = items; break; }
+    } catch(e) { console.warn('RSS fail:', feed, e); }
+  }
+
+  if (collected.length > 0) {
+    let saved = 0;
+    for (const item of collected) {
+      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url });
+      if (!error) saved++;
+    }
+    await loadNews();
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '<span>🔍</span> 뉴스 수집';
+}
+
+async function clearNews() {
+  if (!confirm('저장된 모든 뉴스를 삭제하시겠습니까?')) return;
+  try {
+    await db.from('news_list').delete().neq('id', 0);
+    await loadNews();
+  } catch(e) { console.error('Delete error:', e); }
+}
+
+(async () => {
+  await checkConnection();
+  await loadNews();
+})();
+</script>
+</body>
+</html>
