@@ -8,6 +8,9 @@
 ![Chart.js](https://img.shields.io/badge/Chart.js-Visualization-purple)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 ![Daily Crawler](https://github.com/meene11/it-news-pipeline/actions/workflows/daily-crawler.yml/badge.svg)
+![Vercel](https://img.shields.io/badge/Deploy-Vercel-black)
+
+**Live Demo: https://it-news-pipeline.vercel.app**
 
 ---
 
