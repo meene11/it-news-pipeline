@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT 뉴스 트렌드 & 편향 분석 대시보드 (v3)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #0a0e1a; --bg2: #111827; --bg3: #1a2235;
+    --border: rgba(99,179,237,0.15); --border2: rgba(99,179,237,0.3);
+    --blue: #63b3ed; --cyan: #76e4f7; --green: #68d391;
+    --amber: #f6ad55; --red: #fc8181; --purple: #b794f4;
+    --text: #e2e8f0; --text2: #94a3b8; --text3: #64748b;
+    --mono: 'JetBrains Mono', monospace; --sans: 'Noto Sans KR', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+  header {
+    border-bottom: 1px solid var(--border); padding: 20px 0;
+    position: sticky; top: 0; background: rgba(10,14,26,0.95);
+    backdrop-filter: blur(12px); z-index: 100;
+  }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--green), var(--cyan)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-size: 16px; font-weight: 700; }
+  .logo-sub { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .version-tabs { display: flex; gap: 4px; }
+  .version-tab { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-family: var(--mono); text-decoration: none; color: var(--text3); border: 1px solid transparent; transition: all 0.2s; }
+  .version-tab.active { background: rgba(104,211,145,0.1); color: var(--green); border-color: rgba(104,211,145,0.2); }
+  .hero { padding: 40px 0 28px; text-align: center; }
+  .hero h1 { font-size: 34px; font-weight: 700; line-height: 1.2; margin-bottom: 10px; }
+  .hero h1 span { background: linear-gradient(90deg, var(--green), var(--cyan)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { font-size: 14px; color: var(--text2); margin-bottom: 24px; }
+  .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 32px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; font-family: var(--sans); transition: all 0.2s; }
+  .btn-primary { background: linear-gradient(135deg, #059669, #0891b2); color: #fff; }
+  .btn-primary:hover { transform: translateY(-1px); }
+  .btn-secondary { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  .btn-danger { background: rgba(252,129,129,0.1); color: var(--red); border: 1px solid rgba(252,129,129,0.2); }
+
+  /* Dashboard Grid */
+  .dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 40px; }
+  .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; padding: 24px; }
+  .card-full { grid-column: 1 / -1; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .card-title .icon { font-size: 16px; }
+
+  /* Stats Row */
+  .stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 24px; }
+  .stat { background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+  .stat-label { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-bottom: 4px; }
+  .stat-val { font-size: 24px; font-weight: 700; font-family: var(--mono); }
+  .stat-val.blue { color: var(--blue); }
+  .stat-val.green { color: var(--green); }
+  .stat-val.amber { color: var(--amber); }
+  .stat-val.red { color: var(--red); }
+  .stat-val.purple { color: var(--purple); }
+
+  /* Chart containers */
+  .chart-wrap { position: relative; height: 280px; }
+
+  /* Bias Table */
+  .bias-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .bias-table th { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text3); font-family: var(--mono); font-size: 11px; font-weight: 500; }
+  .bias-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .bias-bar { display: flex; height: 6px; border-radius: 3px; overflow: hidden; background: var(--bg3); }
+  .bias-bar .pos { background: var(--green); }
+  .bias-bar .neu { background: var(--amber); }
+  .bias-bar .neg { background: var(--red); }
+  .score-badge { padding: 2px 8px; border-radius: 8px; font-size: 11px; font-family: var(--mono); }
+  .score-badge.low { background: rgba(104,211,145,0.1); color: var(--green); }
+  .score-badge.mid { background: rgba(246,173,85,0.1); color: var(--amber); }
+  .score-badge.high { background: rgba(252,129,129,0.1); color: var(--red); }
+
+  /* News List */
+  .news-list { max-height: 400px; overflow-y: auto; }
+  .news-list::-webkit-scrollbar { width: 4px; }
+  .news-list::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .news-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .news-item:last-child { border-bottom: none; }
+  .news-badge { padding: 2px 6px; border-radius: 6px; font-size: 9px; font-family: var(--mono); flex-shrink: 0; margin-top: 3px; }
+  .news-badge.positive { background: rgba(104,211,145,0.1); color: var(--green); }
+  .news-badge.negative { background: rgba(252,129,129,0.1); color: var(--red); }
+  .news-badge.neutral { background: rgba(246,173,85,0.1); color: var(--amber); }
+  .news-text { font-size: 13px; line-height: 1.5; }
+  .news-text a { color: var(--text); text-decoration: none; }
+  .news-text a:hover { color: var(--blue); }
+  .news-source { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
+
+  footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 11px; color: var(--text3); font-family: var(--mono); }
+
+  @media (max-width: 768px) {
+    .dashboard { grid-template-columns: 1fr; }
+    .stats-row { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">📊</div>
+        <div>
+          <div class="logo-text">IT 뉴스 트렌드 & 편향 분석</div>
+          <div class="logo-sub">v3 · Chart.js · Bias Analysis</div>
+        </div>
+      </div>
+      <div class="version-tabs">
+        <a class="version-tab" href="../v1/index.html">v1 수집</a>
+        <a class="version-tab" href="../v2/index.html">v2 AI분석</a>
+        <a class="version-tab active">v3 트렌드</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="hero">
+      <h1>뉴스 <span>트렌드 & 편향</span> 분석</h1>
+      <p>키워드 트렌드, 매체별 감성 분포, 편향 점수를 시각화합니다.</p>
+      <div class="controls">
+        <button class="btn btn-primary" onclick="loadAll()">🔄 데이터 새로고침</button>
+        <button class="btn btn-secondary" onclick="startCrawl()">🔍 뉴스 수집</button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat">
+        <div class="stat-label">TOTAL NEWS</div>
+        <div class="stat-val blue" id="s-total">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">ANALYZED</div>
+        <div class="stat-val purple" id="s-analyzed">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">POSITIVE</div>
+        <div class="stat-val green" id="s-pos">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">NEUTRAL</div>
+        <div class="stat-val amber" id="s-neu">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">NEGATIVE</div>
+        <div class="stat-val red" id="s-neg">—</div>
+      </div>
+    </div>
+
+    <div class="dashboard">
+
+      <!-- 키워드 빈도 차트 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🔑</span> 키워드 빈도 TOP 10</div>
+        <div class="chart-wrap"><canvas id="chart-keywords"></canvas></div>
+      </div>
+
+      <!-- 매체별 감성 분포 차트 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">📡</span> 매체별 감성 분포</div>
+        <div class="chart-wrap"><canvas id="chart-source-sentiment"></canvas></div>
+      </div>
+
+      <!-- 전체 감성 도넛 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">🎯</span> 전체 감성 비율</div>
+        <div class="chart-wrap"><canvas id="chart-sentiment-donut"></canvas></div>
+      </div>
+
+      <!-- 편향 점수 테이블 -->
+      <div class="card">
+        <div class="card-title"><span class="icon">📐</span> 매체별 편향 점수 (Bias Score)</div>
+        <div id="bias-table-wrap">
+          <table class="bias-table">
+            <thead><tr><th>매체</th><th>기사 수</th><th>감성 분포</th><th>Bias Score</th></tr></thead>
+            <tbody id="bias-tbody"><tr><td colspan="4" style="text-align:center;color:var(--text3)">데이터 로딩 중...</td></tr></tbody>
+          </table>
+        </div>
+        <div style="margin-top:12px;font-size:11px;color:var(--text3);font-family:var(--mono)">
+          Bias Score: 전체 평균 감성 대비 편차 (0=편향없음, 1=극단)
+        </div>
+      </div>
+
+      <!-- 날짜별 수집량 -->
+      <div class="card card-full">
+        <div class="card-title"><span class="icon">📈</span> 날짜별 뉴스 수집량</div>
+        <div class="chart-wrap"><canvas id="chart-daily"></canvas></div>
+      </div>
+
+      <!-- 최근 뉴스 목록 -->
+      <div class="card card-full">
+        <div class="card-title"><span class="icon">📋</span> 최근 분석 뉴스</div>
+        <div class="news-list" id="news-list">로딩 중...</div>
+      </div>
+
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">v3 · Trend & Bias Analysis · Chart.js · gpt-4o-mini · Supabase PostgreSQL</div>
+</footer>
+
+<script>
+const SUPABASE_URL = 'https://jbtyhxhkzudbyguxluru.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidHloeGhrenVkYnlndXhsdXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNzUxMjMsImV4cCI6MjA4OTc1MTEyM30.CbHlcAhOnx-Fwag1OwfO3BH5IupeFMxgil4Wm6F67AU';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const SOURCE_MAP = { zdnet: 'ZDNet Korea', bloter: 'Bloter', etnews: 'ETNews', 'feedburner.com/bloter': 'Bloter' };
+function identifySource(url) {
+  const u = url.toLowerCase();
+  for (const [k, v] of Object.entries(SOURCE_MAP)) { if (u.includes(k)) return v; }
+  try { return new URL(url).hostname; } catch { return 'Unknown'; }
+}
+
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+const RSS_FEEDS = [
+  'https://rss.zdnet.co.kr/zdnet/rss/news.xml',
+  'https://feeds.feedburner.com/bloter',
+  'https://rss.etnews.com/Section901.xml',
+];
+
+let charts = {};
+
+// ── 데이터 로드 ──────────────────────────────────────
+
+async function loadAll() {
+  const { data: news } = await db.from('news_list').select('*').order('created_at', { ascending: false }).limit(200);
+  if (!news) return;
+
+  let keywords = [];
+  try {
+    const { data: kw } = await db.from('news_keywords').select('*');
+    keywords = kw || [];
+  } catch(e) { /* news_keywords 테이블이 없을 수 있음 */ }
+
+  updateStats(news);
+  renderKeywordChart(keywords);
+  renderSourceSentimentChart(news);
+  renderSentimentDonut(news);
+  renderBiasTable(news);
+  renderDailyChart(news);
+  renderNewsList(news);
+}
+
+function updateStats(news) {
+  const analyzed = news.filter(n => n.sentiment).length;
+  const pos = news.filter(n => n.sentiment === 'positive').length;
+  const neu = news.filter(n => n.sentiment === 'neutral').length;
+  const neg = news.filter(n => n.sentiment === 'negative').length;
+  document.getElementById('s-total').textContent = news.length;
+  document.getElementById('s-analyzed').textContent = analyzed;
+  document.getElementById('s-pos').textContent = pos;
+  document.getElementById('s-neu').textContent = neu;
+  document.getElementById('s-neg').textContent = neg;
+}
+
+// ── 키워드 빈도 차트 ─────────────────────────────────
+
+function renderKeywordChart(keywords) {
+  const freq = {};
+  keywords.forEach(k => { freq[k.keyword] = (freq[k.keyword] || 0) + 1; });
+  const sorted = Object.entries(freq).sort((a,b) => b[1] - a[1]).slice(0, 10);
+
+  if (charts.keywords) charts.keywords.destroy();
+  charts.keywords = new Chart(document.getElementById('chart-keywords'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(s => s[0]),
+      datasets: [{
+        label: '빈도',
+        data: sorted.map(s => s[1]),
+        backgroundColor: 'rgba(118,228,247,0.6)',
+        borderColor: 'rgba(118,228,247,1)',
+        borderWidth: 1,
+        borderRadius: 4,
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+        y: { grid: { display: false }, ticks: { color: '#e2e8f0', font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── 매체별 감성 분포 차트 ────────────────────────────
+
+function renderSourceSentimentChart(news) {
+  const sources = {};
+  news.forEach(n => {
+    const src = n.source || identifySource(n.url);
+    if (!sources[src]) sources[src] = { positive: 0, neutral: 0, negative: 0 };
+    if (n.sentiment) sources[src][n.sentiment]++;
+  });
+
+  const labels = Object.keys(sources);
+  if (charts.sourceSentiment) charts.sourceSentiment.destroy();
+  charts.sourceSentiment = new Chart(document.getElementById('chart-source-sentiment'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: '긍정', data: labels.map(l => sources[l].positive), backgroundColor: 'rgba(104,211,145,0.7)', borderRadius: 3 },
+        { label: '중립', data: labels.map(l => sources[l].neutral), backgroundColor: 'rgba(246,173,85,0.7)', borderRadius: 3 },
+        { label: '부정', data: labels.map(l => sources[l].negative), backgroundColor: 'rgba(252,129,129,0.7)', borderRadius: 3 },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { color: '#e2e8f0' } },
+        y: { stacked: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
+      }
+    }
+  });
+}
+
+// ── 전체 감성 도넛 ───────────────────────────────────
+
+function renderSentimentDonut(news) {
+  const pos = news.filter(n => n.sentiment === 'positive').length;
+  const neu = news.filter(n => n.sentiment === 'neutral').length;
+  const neg = news.filter(n => n.sentiment === 'negative').length;
+
+  if (charts.donut) charts.donut.destroy();
+  charts.donut = new Chart(document.getElementById('chart-sentiment-donut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['긍정', '중립', '부정'],
+      datasets: [{
+        data: [pos, neu, neg],
+        backgroundColor: ['rgba(104,211,145,0.8)', 'rgba(246,173,85,0.8)', 'rgba(252,129,129,0.8)'],
+        borderWidth: 0, hoverOffset: 8
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '55%',
+      plugins: {
+        legend: { position: 'bottom', labels: { color: '#94a3b8', padding: 16, font: { size: 12 } } }
+      }
+    }
+  });
+}
+
+// ── 편향 점수 테이블 ─────────────────────────────────
+
+function renderBiasTable(news) {
+  const sources = {};
+  news.forEach(n => {
+    const src = n.source || identifySource(n.url);
+    if (!sources[src]) sources[src] = { positive: 0, neutral: 0, negative: 0, total: 0 };
+    if (n.sentiment) {
+      sources[src][n.sentiment]++;
+      sources[src].total++;
+    }
+  });
+
+  const totalAll = Object.values(sources).reduce((a, s) => a + s.total, 0);
+  const avgPos = totalAll ? Object.values(sources).reduce((a, s) => a + s.positive, 0) / totalAll : 0;
+  const avgNeu = totalAll ? Object.values(sources).reduce((a, s) => a + s.neutral, 0) / totalAll : 0;
+  const avgNeg = totalAll ? Object.values(sources).reduce((a, s) => a + s.negative, 0) / totalAll : 0;
+
+  const rows = Object.entries(sources)
+    .filter(([, s]) => s.total >= 2)
+    .map(([name, s]) => {
+      const pPos = s.positive / s.total;
+      const pNeu = s.neutral / s.total;
+      const pNeg = s.negative / s.total;
+      const bias = (Math.abs(pPos - avgPos) + Math.abs(pNeu - avgNeu) + Math.abs(pNeg - avgNeg)) / 2;
+      return { name, ...s, pPos, pNeu, pNeg, bias };
+    })
+    .sort((a, b) => b.bias - a.bias);
+
+  const tbody = document.getElementById('bias-tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text3)">분석 데이터 부족</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => {
+    const cls = r.bias >= 0.3 ? 'high' : r.bias >= 0.15 ? 'mid' : 'low';
+    return `<tr>
+      <td style="font-weight:500">${r.name}</td>
+      <td style="font-family:var(--mono);font-size:12px">${r.total}</td>
+      <td>
+        <div class="bias-bar">
+          <div class="pos" style="width:${(r.pPos*100).toFixed(1)}%"></div>
+          <div class="neu" style="width:${(r.pNeu*100).toFixed(1)}%"></div>
+          <div class="neg" style="width:${(r.pNeg*100).toFixed(1)}%"></div>
+        </div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;font-family:var(--mono)">
+          +${(r.pPos*100).toFixed(0)}% =${(r.pNeu*100).toFixed(0)}% -${(r.pNeg*100).toFixed(0)}%
+        </div>
+      </td>
+      <td><span class="score-badge ${cls}">${r.bias.toFixed(3)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+// ── 날짜별 수집량 ────────────────────────────────────
+
+function renderDailyChart(news) {
+  const daily = {};
+  news.forEach(n => {
+    const date = n.created_at?.slice(0, 10);
+    if (date) daily[date] = (daily[date] || 0) + 1;
+  });
+  const sorted = Object.entries(daily).sort((a, b) => a[0].localeCompare(b[0]));
+
+  if (charts.daily) charts.daily.destroy();
+  charts.daily = new Chart(document.getElementById('chart-daily'), {
+    type: 'line',
+    data: {
+      labels: sorted.map(s => s[0].slice(5)),
+      datasets: [{
+        label: '수집 건수',
+        data: sorted.map(s => s[1]),
+        borderColor: 'rgba(99,179,237,0.9)',
+        backgroundColor: 'rgba(99,179,237,0.1)',
+        fill: true, tension: 0.3, pointRadius: 4,
+        pointBackgroundColor: 'rgba(99,179,237,1)',
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
+        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── 뉴스 목록 ────────────────────────────────────────
+
+function renderNewsList(news) {
+  const el = document.getElementById('news-list');
+  const items = news.slice(0, 30);
+  if (!items.length) { el.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">뉴스 없음</div>'; return; }
+
+  el.innerHTML = items.map(n => {
+    const label = { positive: '긍정', negative: '부정', neutral: '중립' }[n.sentiment] || '';
+    const src = n.source || identifySource(n.url);
+    return `<div class="news-item">
+      ${n.sentiment ? `<span class="news-badge ${n.sentiment}">${label}</span>` : '<span class="news-badge neutral" style="opacity:0.3">?</span>'}
+      <div>
+        <div class="news-text"><a href="${n.url}" target="_blank">${n.title}</a></div>
+        ${n.summary ? `<div class="news-source">AI: ${n.summary}</div>` : ''}
+        <div class="news-source">${src} · ${n.created_at?.slice(0,10) || ''}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 뉴스 수집 ────────────────────────────────────────
+
+async function startCrawl() {
+  for (const feed of RSS_FEEDS) {
+    try {
+      const res = await fetch(CORS_PROXY + encodeURIComponent(feed));
+      const text = await res.text();
+      const xml = new DOMParser().parseFromString(text, 'text/xml');
+      const items = [];
+      for (const item of xml.querySelectorAll('item')) {
+        const title = item.querySelector('title')?.textContent?.trim();
+        const link = item.querySelector('link')?.textContent?.trim();
+        if (title && link && title.length > 5) items.push({ title, url: link });
+        if (items.length >= 20) break;
+      }
+      if (items.length > 0) {
+        for (const it of items) await db.from('news_list').insert({ title: it.title, url: it.url });
+        await loadAll();
+        return;
+      }
+    } catch(e) { console.warn('RSS fail:', e); }
+  }
+}
+
+// ── init ─────────────────────────────────────────────
+
+loadAll();
+</script>
+</body>
+</html>
