@@ -2,3 +2,6 @@
 *.pyc
 __pycache__/
 _write_readme.py
+docs/INTERVIEW_PREP.md
+docs/PROJECT_LEVEL_ASSESSMENT.md
+docs/DIFFERENTIATION_GUIDE.md
