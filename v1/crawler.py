@@ -85,10 +85,28 @@ def fetch_it_news_rss():
 
     return news_items[:20]
 
+def is_duplicate(url):
+    """이미 저장된 URL인지 확인"""
+    try:
+        res = supabase_request("GET", "news_list", params={
+            "url": f"eq.{url}",
+            "select": "id"
+        })
+        if res.status_code == 200:
+            return len(res.json()) > 0
+    except Exception:
+        pass
+    return False
+
 def save_to_supabase(news_items):
     console.print("[yellow]💾 Supabase에 저장 중...[/yellow]")
     saved = 0
+    skipped = 0
     for item in news_items:
+        if is_duplicate(item["url"]):
+            console.print(f"[dim]중복 스킵: {item['title'][:30]}...[/dim]")
+            skipped += 1
+            continue
         try:
             res = supabase_request("POST", "news_list", data={
                 "title": item["title"],
@@ -100,7 +118,7 @@ def save_to_supabase(news_items):
                 console.print(f"[red]저장 실패: {res.text}[/red]")
         except Exception as e:
             console.print(f"[red]저장 오류: {e}[/red]")
-    console.print(f"[green]✅ {saved}개 저장 완료![/green]")
+    console.print(f"[green]✅ {saved}개 저장 완료! (중복 스킵: {skipped}개)[/green]")
     return saved
 
 def show_dashboard():

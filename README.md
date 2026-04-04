@@ -7,6 +7,7 @@
 ![OpenAI](https://img.shields.io/badge/OpenAI-gpt--4o--mini-orange)
 ![Chart.js](https://img.shields.io/badge/Chart.js-Visualization-purple)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
+![Daily Crawler](https://github.com/meene11/it-news-pipeline/actions/workflows/daily-crawler.yml/badge.svg)
 
 ---
 
