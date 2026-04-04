@@ -1,6 +1,6 @@
 # IT News AI Pipeline
 
-> RSS 수집부터 AI 분석, 편향 탐지, 트렌드 시각화까지 -- End-to-End 뉴스 데이터 파이프라인
+> RSS 수집부터 AI 분석, 매체별 경향성 탐색, 트렌드 시각화까지 -- End-to-End 뉴스 데이터 파이프라인
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-green)
@@ -16,14 +16,15 @@
 
 ## 프로젝트 개요
 
-국내 주요 IT 매체(ZDNet, Bloter, ETNews)의 뉴스를 **자동 수집**하고, **LLM 기반 요약/감성 분석/편향 탐지**를 수행한 뒤, **트렌드를 시각화**하는 End-to-End 뉴스 데이터 파이프라인입니다.
+국내 주요 IT 매체(ZDNet, Bloter, ETNews)의 뉴스를 **자동 수집**하고, **LLM 기반 요약/감성 분석**을 수행한 뒤, **매체별 보도 경향성을 탐색하고 트렌드를 시각화**하는 End-to-End 뉴스 데이터 파이프라인입니다.
 
 ### 핵심 가치
 - 단순 크롤링이 아닌, AI를 활용한 **뉴스 콘텐츠 가공 및 인사이트 도출**
-- 동일 이슈에 대한 매체별 보도 차이를 정량적으로 분석하는 **미디어 편향 탐지**
+- 동일 이슈에 대한 매체별 보도 톤 차이를 정량적으로 탐색하는 **경향성 분석**
 - v1 → v2 → v3 **단계적 확장**으로 데이터 파이프라인 설계 역량 입증
 
-> 설계 근거, 기술 선택 이유, 편향 분석 방법론, 면접 대비 Q&A는 **[DOCUMENTATION.md](./DOCUMENTATION.md)** 참고
+> 설계 근거, 기술 선택 이유, 경향성 탐색 방법론은 **[DOCUMENTATION.md](./DOCUMENTATION.md)** 참고
+> AI 분석 품질 평가(20건 전수 검증)는 **[docs/EVALUATION_REPORT.md](./docs/EVALUATION_REPORT.md)** 참고
 
 ---
 
@@ -33,7 +34,7 @@
 |------|-----------|--------|------|
 | **v1** | RSS 수집 + Supabase 저장 + 웹 대시보드 | `main` | Done |
 | **v2** | LLM 요약 + 감성 분석 + 신뢰도 점수 | `feature/v2` | Planned |
-| **v3** | 키워드 트렌드 + 매체별 편향 분석 + 시각화 | `feature/v3` | Planned |
+| **v3** | 키워드 트렌드 + 매체별 경향성 탐색 + 시각화 | `feature/v3` | Planned |
 
 ---
 
@@ -45,7 +46,7 @@ it-news-pipeline/
 │   ├── crawler.py          # RSS 수집 엔진 + 터미널 대시보드
 │   └── index.html          # 웹 대시보드 (Supabase JS SDK)
 ├── v2/                     # AI 요약 + 감성 분석 (feature/v2)
-├── v3/                     # 키워드 트렌드 + 편향 분석 (feature/v3)
+├── v3/                     # 키워드 트렌드 + 경향성 탐색 (feature/v3)
 ├── docs/                   # 프로젝트 문서
 ├── DOCUMENTATION.md        # 상세 기술 문서 + 면접 Q&A
 └── README.md
@@ -161,7 +162,7 @@ AI 분석 모듈 (analyzer.py)
 
 ---
 
-## v3 -- 트렌드 분석 + 편향 탐지 대시보드 (branch: feature/v3)
+## v3 -- 트렌드 분석 + 매체별 경향성 탐색 대시보드 (branch: feature/v3)
 
 ### 추가 기능
 
@@ -170,27 +171,27 @@ AI 분석 모듈 (analyzer.py)
 - 키워드별 등장 빈도 트렌드 차트 시각화
 - 날짜별 뉴스 누적량 라인 차트
 
-**매체별 편향 분석**
+**매체별 경향성 탐색**
 - 동일 이슈/키워드에 대한 **매체별 프레이밍 차이** 비교
 - 매체별 감성 분포 비교 차트 (긍정/부정/중립 비율)
-- **편향 점수(Bias Score)** 산출: 특정 주제에 대한 매체의 감성 편중도 정량화
-- 편향 분석 리포트 자동 생성
+- **경향성 점수(Bias Score)** 산출: 특정 주제에 대한 매체의 감성 편중도 정량화
+- 경향성 탐색 리포트 자동 생성
 
 **시각화 대시보드**
 - 키워드 빈도 바 차트 / 워드클라우드
 - 날짜별 뉴스량 라인 차트
 - 매체별 감성 분포 파이/도넛 차트
-- 편향 비교 레이더 차트
+- 경향성 비교 레이더 차트
 
 ### 추가 기술 스택
 | 구분 | 기술 | 선택 이유 |
 |------|------|-----------|
 | 시각화 | Chart.js | 경량 (< 200KB), Canvas 기반, 반응형, 풍부한 차트 타입 |
 | 키워드 추출 | OpenAI API (엔티티 추출) | 한국어 형태소 분석 대비 문맥 이해력 우수 |
-| 편향 분석 | 통계 집계 + LLM 프레이밍 분석 | LLM 감성 결과를 매체별로 집계하여 편향 점수 산출 |
+| 경향성 탐색 | 통계 집계 + LLM 프레이밍 분석 | LLM 감성 결과를 매체별로 집계하여 경향성 점수 산출 |
 | 데이터 집계 | Supabase PostgreSQL + JS | GROUP BY 집계 쿼리, 실시간 필터링 |
 
-### 편향 분석 방법론
+### 경향성 탐색 방법론
 ```
 1. 동일 키워드/이슈 뉴스 그룹핑
    -- 같은 날짜, 같은 키워드를 다룬 뉴스끼리 묶음
@@ -199,7 +200,7 @@ AI 분석 모듈 (analyzer.py)
    ├── 매체 A: positive 70% / neutral 20% / negative 10%
    └── 매체 B: positive 20% / neutral 30% / negative 50%
 
-3. 편향 점수(Bias Score) 산출
+3. 경향성 점수(Bias Score) 산출
    ├── 전체 평균 감성 대비 해당 매체의 감성 편차
    └── |매체 감성 비율 - 전체 평균 감성 비율| 의 합
 
@@ -221,7 +222,7 @@ CREATE TABLE news_keywords (
 -- 매체 정보 컬럼 추가
 ALTER TABLE news_list ADD COLUMN source text;
 
--- 편향 분석 결과 테이블
+-- 경향성 탐색 결과 테이블
 CREATE TABLE bias_reports (
   id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   keyword      text NOT NULL,
@@ -253,7 +254,7 @@ CREATE TABLE bias_reports (
                    |
         +----------+----------+
         |          |          |
-   v3: 트렌드  v3: 편향   v3: 시각화
+   v3: 트렌드  v3: 경향성   v3: 시각화
     trend.py   bias.py   dashboard
    키워드 추출 매체 비교  Chart.js
         |          |          |
