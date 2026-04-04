@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT 뉴스 헤드라인 수집기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg2: #111827;
+    --bg3: #1a2235;
+    --border: rgba(99,179,237,0.15);
+    --border2: rgba(99,179,237,0.3);
+    --blue: #63b3ed;
+    --blue2: #90cdf4;
+    --cyan: #76e4f7;
+    --green: #68d391;
+    --amber: #f6ad55;
+    --red: #fc8181;
+    --purple: #b794f4;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Noto Sans KR', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: linear-gradient(rgba(99,179,237,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(99,179,237,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none; z-index: 0;
+  }
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+  header {
+    border-bottom: 1px solid var(--border); padding: 20px 0;
+    position: sticky; top: 0;
+    background: rgba(10,14,26,0.92); backdrop-filter: blur(12px); z-index: 100;
+  }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: linear-gradient(135deg, var(--blue), var(--purple)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+  .logo-text { font-size: 16px; font-weight: 700; }
+  .logo-sub { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+  .status-badge { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(104,211,145,0.08); border: 1px solid rgba(104,211,145,0.2); border-radius: 20px; font-size: 12px; color: var(--green); font-family: var(--mono); }
+  .status-dot { width: 6px; height: 6px; background: var(--green); border-radius: 50%; animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  .hero { padding: 60px 0 40px; text-align: center; }
+  .hero-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; background: rgba(99,179,237,0.08); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--blue); font-family: var(--mono); margin-bottom: 20px; }
+  .hero h1 { font-size: 42px; font-weight: 700; line-height: 1.1; margin-bottom: 14px; letter-spacing: -1px; }
+  .hero h1 span { background: linear-gradient(90deg, var(--blue), var(--cyan), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .hero p { font-size: 15px; color: var(--text2); max-width: 500px; margin: 0 auto 32px; line-height: 1.7; }
+  .controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-bottom: 40px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 500; font-family: var(--sans); cursor: pointer; transition: all 0.2s; border: none; outline: none; }
+  .btn-primary { background: linear-gradient(135deg, #3b82f6, #7c3aed); color: #fff; box-shadow: 0 4px 20px rgba(99,102,241,0.3); }
+  .btn-primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99,102,241,0.45); }
+  .btn-secondary { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
+  .btn-secondary:hover:not(:disabled) { border-color: var(--border2); color: var(--text); }
+  .btn-danger { background: rgba(252,129,129,0.1); color: var(--red); border: 1px solid rgba(252,129,129,0.2); }
+  .btn-danger:hover:not(:disabled) { background: rgba(252,129,129,0.18); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .spin { animation: spin 1s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; display: flex; align-items: center; gap: 16px; }
+  .stat-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .stat-icon.blue { background: rgba(99,179,237,0.1); }
+  .stat-icon.green { background: rgba(104,211,145,0.1); }
+  .stat-icon.purple { background: rgba(183,148,244,0.1); }
+  .stat-label { font-size: 12px; color: var(--text3); margin-bottom: 4px; font-family: var(--mono); }
+  .stat-value { font-size: 24px; font-weight: 700; font-family: var(--mono); }
+  .stat-value.blue { color: var(--blue); }
+  .stat-value.green { color: var(--green); }
+  .stat-value.purple { color: var(--purple); }
+  .log-terminal { background: #050810; border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin-bottom: 28px; font-family: var(--mono); font-size: 12px; max-height: 140px; overflow-y: auto; line-height: 1.8; }
+  .log-terminal::-webkit-scrollbar { width: 4px; }
+  .log-terminal::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text3); flex-shrink: 0; }
+  .log-msg.info { color: var(--blue); }
+  .log-msg.success { color: var(--green); }
+  .log-msg.error { color: var(--red); }
+  .log-msg.warn { color: var(--amber); }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .section-title { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .count-badge { padding: 2px 10px; background: rgba(99,179,237,0.1); border: 1px solid var(--border); border-radius: 20px; font-size: 11px; color: var(--blue); font-family: var(--mono); }
+  .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; margin-bottom: 40px; }
+  .news-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; padding: 20px; transition: all 0.2s; cursor: pointer; text-decoration: none; display: block; position: relative; overflow: hidden; }
+  .news-card::before { content: ''; position: absolute; top: 0; left: 0; width: 3px; height: 100%; background: linear-gradient(180deg, var(--blue), var(--purple)); opacity: 0; transition: opacity 0.2s; }
+  .news-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+  .news-card:hover::before { opacity: 1; }
+  .news-num { font-family: var(--mono); font-size: 11px; color: var(--text3); margin-bottom: 8px; }
+  .news-title { font-size: 14px; font-weight: 500; color: var(--text); line-height: 1.6; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .news-meta { display: flex; align-items: center; justify-content: space-between; }
+  .news-time { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .news-link { font-size: 11px; color: var(--blue); font-family: var(--mono); text-decoration: none; }
+  .news-link:hover { color: var(--blue2); }
+  .empty-state { text-align: center; padding: 80px 20px; color: var(--text3); grid-column: 1/-1; }
+  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+  .empty-text { font-size: 16px; }
+  .empty-sub { font-size: 13px; margin-top: 8px; }
+  footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono); }
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 28px; }
+    .stats-row { grid-template-columns: 1fr; }
+    .news-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="container">
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">📡</div>
+        <div>
+          <div class="logo-text">IT 뉴스 수집기</div>
+          <div class="logo-sub">RSS · Supabase · 무료</div>
+        </div>
+      </div>
+      <div class="status-badge">
+        <div class="status-dot"></div>
+        <span id="conn-status">연결 중...</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="container">
+    <div class="hero">
+      <div class="hero-tag">⚡ RSS + Supabase · 완전 무료</div>
+      <h1>실시간 <span>IT 뉴스</span> 헤드라인<br>수집 대시보드</h1>
+      <p>네이버 IT뉴스 RSS를 수집해<br>Supabase에 저장하고 실시간으로 보여줍니다.</p>
+      <div class="controls">
+        <button class="btn btn-primary" id="crawl-btn" onclick="startCrawl()">
+          <span>🔍</span> 뉴스 수집 시작
+        </button>
+        <button class="btn btn-secondary" onclick="loadNews()">
+          <span>🔄</span> 새로고침
+        </button>
+        <button class="btn btn-danger" onclick="clearNews()">
+          <span>🗑</span> 데이터 초기화
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-icon blue">📰</div>
+        <div><div class="stat-label">TOTAL_NEWS</div><div class="stat-value blue" id="stat-total">—</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon green">⏱</div>
+        <div><div class="stat-label">LAST_CRAWLED</div><div class="stat-value green" id="stat-last" style="font-size:14px;padding-top:6px">—</div></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon purple">🗄</div>
+        <div><div class="stat-label">DB_STATUS</div><div class="stat-value purple" id="stat-db">—</div></div>
+      </div>
+    </div>
+
+    <div class="log-terminal" id="log-box">
+      <div class="log-line"><span class="log-time">[00:00:00]</span><span class="log-msg info">시스템 초기화 중...</span></div>
+    </div>
+
+    <div class="section-header">
+      <div class="section-title">📋 수집된 뉴스 <span class="count-badge" id="news-count">0개</span></div>
+      <div style="font-size:12px;color:var(--text3);font-family:var(--mono)">최신순 정렬</div>
+    </div>
+
+    <div class="news-grid" id="news-grid">
+      <div class="empty-state">
+        <div class="empty-icon">📭</div>
+        <div class="empty-text">뉴스가 없습니다</div>
+        <div class="empty-sub">"뉴스 수집 시작" 버튼을 눌러주세요</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="container">news_list · Supabase PostgreSQL · RSS 무료 수집 · © 2026</div>
+</footer>
+
+<script>
+const SUPABASE_URL = 'https://jbtyhxhkzudbyguxluru.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidHloeGhrenVkYnlndXhsdXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNzUxMjMsImV4cCI6MjA4OTc1MTEyM30.CbHlcAhOnx-Fwag1OwfO3BH5IupeFMxgil4Wm6F67AU';
+const { createClient } = supabase;
+const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let crawling = false;
+
+// RSS 피드 목록 (CORS 프록시 사용)
+const RSS_FEEDS = [
+  'https://rss.zdnet.co.kr/zdnet/rss/news.xml',
+  'https://feeds.feedburner.com/bloter',
+  'https://rss.etnews.com/Section901.xml',
+];
+const CORS_PROXY = 'https://api.allorigins.win/raw?url=';
+
+function log(msg, type = 'info') {
+  const box = document.getElementById('log-box');
+  const now = new Date().toTimeString().slice(0,8);
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="log-time">[${now}]</span><span class="log-msg ${type}">${msg}</span>`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function checkConnection() {
+  try {
+    const { error } = await db.from('news_list').select('id', { count: 'exact', head: true });
+    if (error) throw error;
+    document.getElementById('conn-status').textContent = 'Supabase 연결됨';
+    document.getElementById('stat-db').textContent = 'ONLINE';
+    log('Supabase 연결 성공! ✓', 'success');
+  } catch(e) {
+    document.getElementById('conn-status').textContent = '연결 오류';
+    document.getElementById('stat-db').textContent = 'ERROR';
+    log(`Supabase 오류: ${e.message}`, 'error');
+  }
+}
+
+async function loadNews() {
+  try {
+    const { data, count, error } = await db
+      .from('news_list')
+      .select('*', { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    renderNews(data || []);
+    document.getElementById('stat-total').textContent = count || 0;
+    document.getElementById('news-count').textContent = `${(data||[]).length}개`;
+    if (data && data.length > 0) {
+      const d = new Date(data[0].created_at);
+      document.getElementById('stat-last').textContent = d.toLocaleTimeString('ko-KR');
+    }
+    log(`뉴스 ${(data||[]).length}개 로드 완료`, 'success');
+  } catch(e) {
+    log(`로드 오류: ${e.message}`, 'error');
+  }
+}
+
+function renderNews(items) {
+  const grid = document.getElementById('news-grid');
+  if (!items.length) {
+    grid.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><div class="empty-text">뉴스가 없습니다</div><div class="empty-sub">"뉴스 수집 시작" 버튼을 눌러주세요</div></div>`;
+    return;
+  }
+  grid.innerHTML = items.map((item, i) => {
+    const d = new Date(item.created_at);
+    const time = d.toLocaleString('ko-KR', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    return `<a class="news-card" href="${item.url}" target="_blank">
+      <div class="news-num">#${String(i+1).padStart(2,'0')} · ID:${item.id}</div>
+      <div class="news-title">${item.title}</div>
+      <div class="news-meta">
+        <span class="news-time">${time}</span>
+        <span class="news-link">↗ 기사 보기</span>
+      </div>
+    </a>`;
+  }).join('');
+}
+
+async function fetchRSS(feedUrl) {
+  const res = await fetch(CORS_PROXY + encodeURIComponent(feedUrl));
+  const text = await res.text();
+  const parser = new DOMParser();
+  const xml = parser.parseFromString(text, 'text/xml');
+  const items = [];
+  for (const item of xml.querySelectorAll('item')) {
+    const title = item.querySelector('title')?.textContent?.trim();
+    const link = item.querySelector('link')?.textContent?.trim();
+    if (title && link && title.length > 5) {
+      items.push({ title, url: link });
+    }
+    if (items.length >= 20) break;
+  }
+  return items;
+}
+
+async function startCrawl() {
+  if (crawling) return;
+  crawling = true;
+  const btn = document.getElementById('crawl-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin">⟳</span> 수집 중...';
+
+  let collected = [];
+
+  for (const feed of RSS_FEEDS) {
+    try {
+      log(`RSS 수집 중: ${feed.split('/')[2]}`, 'info');
+      const items = await fetchRSS(feed);
+      if (items.length > 0) {
+        collected = items;
+        log(`✅ ${items.length}개 수집 완료!`, 'success');
+        break;
+      }
+    } catch(e) {
+      log(`실패: ${feed.split('/')[2]} → ${e.message}`, 'warn');
+    }
+  }
+
+  if (collected.length === 0) {
+    log('모든 RSS 수집 실패 😢', 'error');
+  } else {
+    log(`Supabase 저장 중...`, 'info');
+    let saved = 0;
+    for (const item of collected) {
+      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url });
+      if (!error) saved++;
+    }
+    log(`💾 ${saved}개 저장 완료!`, 'success');
+    await loadNews();
+  }
+
+  crawling = false;
+  btn.disabled = false;
+  btn.innerHTML = '<span>🔍</span> 뉴스 수집 시작';
+}
+
+async function clearNews() {
+  if (!confirm('저장된 모든 뉴스를 삭제하시겠습니까?')) return;
+  try {
+    const { error } = await db.from('news_list').delete().neq('id', 0);
+    if (error) throw error;
+    log('모든 뉴스 삭제 완료', 'warn');
+    await loadNews();
+  } catch(e) {
+    log(`삭제 오류: ${e.message}`, 'error');
+  }
+}
+
+(async () => {
+  await checkConnection();
+  await loadNews();
+})();
+</script>
+</body>
+</html>
