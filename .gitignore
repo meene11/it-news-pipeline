@@ -6,3 +6,5 @@ docs/INTERVIEW_PREP.md
 docs/PROJECT_LEVEL_ASSESSMENT.md
 docs/DIFFERENTIATION_GUIDE.md
 docs/TOTAL_PORTFOLIO_REVIEW.md
+docs/*.pptx
+docs/_make_ppt.py
