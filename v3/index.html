@@ -113,8 +113,8 @@
         </div>
       </div>
       <div class="version-tabs">
-        <a class="version-tab" href="../v1/index.html">v1 수집</a>
-        <a class="version-tab" href="../v2/index.html">v2 AI분석</a>
+        <a class="version-tab" href="/v1/index.html">v1 수집</a>
+        <a class="version-tab" href="/v2/index.html">v2 AI분석</a>
         <a class="version-tab active">v3 트렌드</a>
       </div>
     </div>
@@ -228,6 +228,18 @@ const RSS_FEEDS = [
   'https://feeds.feedburner.com/bloter',
   'https://rss.etnews.com/Section901.xml',
 ];
+
+
+function extractSummary(html) {
+  if (!html) return '';
+  // strip CDATA / tags / entities
+  var t = String(html).replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
+  if (!t) return '';
+  var sentences = t.split(/(?<=[.!?。…])\s+/).filter(Boolean);
+  var out = sentences.slice(0, 2).join(' ');
+  if (out.length > 160) out = out.slice(0, 157) + '...';
+  return out;
+}
 
 let charts = {};
 
@@ -481,11 +493,14 @@ async function startCrawl() {
       for (const item of xml.querySelectorAll('item')) {
         const title = item.querySelector('title')?.textContent?.trim();
         const link = item.querySelector('link')?.textContent?.trim();
-        if (title && link && title.length > 5) items.push({ title, url: link });
+        if (title && link && title.length > 5) {
+          var desc = item.querySelector('description')?.textContent || item.getElementsByTagName('content:encoded')[0]?.textContent || '';
+          items.push({ title, url: link, summary: extractSummary(desc) });
+        }
         if (items.length >= 20) break;
       }
       if (items.length > 0) {
-        for (const it of items) await db.from('news_list').insert({ title: it.title, url: it.url });
+        for (const it of items) await db.from('news_list').insert({ title: it.title, url: it.url, summary: it.summary || null });
         await loadAll();
         return;
       }

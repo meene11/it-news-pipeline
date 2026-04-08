@@ -114,6 +114,11 @@
   .news-link { font-size: 11px; color: var(--blue); font-family: var(--mono); text-decoration: none; }
   .empty-state { text-align: center; padding: 60px 20px; color: var(--text3); grid-column: 1/-1; }
   .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
+
+  .version-tabs { display: flex; gap: 4px; }
+  .version-tab { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-family: var(--mono); text-decoration: none; color: var(--text3); border: 1px solid transparent; transition: all 0.2s; }
+  .version-tab:hover { color: var(--text2); border-color: var(--border); }
+  .version-tab.active { background: rgba(99,179,237,0.1); color: var(--blue); border-color: rgba(99,179,237,0.25); }
   footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono); }
   @media (max-width: 768px) {
     .hero h1 { font-size: 28px; }
@@ -132,6 +137,11 @@
           <div class="logo-text">IT 뉴스 AI 분석기</div>
           <div class="logo-sub">v2 · GPT-4o-mini · Sentiment</div>
         </div>
+      </div>
+      <div class="version-tabs">
+        <a class="version-tab" href="/v1/index.html">v1 수집</a>
+        <a class="version-tab active">v2 AI분석</a>
+        <a class="version-tab" href="/v3/index.html">v3 트렌드</a>
       </div>
       <div class="status-badge">
         <div class="status-dot"></div>
@@ -215,6 +225,18 @@ const SUPABASE_URL = 'https://jbtyhxhkzudbyguxluru.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidHloeGhrenVkYnlndXhsdXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNzUxMjMsImV4cCI6MjA4OTc1MTEyM30.CbHlcAhOnx-Fwag1OwfO3BH5IupeFMxgil4Wm6F67AU';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
+function extractSummary(html) {
+  if (!html) return '';
+  // strip CDATA / tags / entities
+  var t = String(html).replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
+  if (!t) return '';
+  var sentences = t.split(/(?<=[.!?。…])\s+/).filter(Boolean);
+  var out = sentences.slice(0, 2).join(' ');
+  if (out.length > 160) out = out.slice(0, 157) + '...';
+  return out;
+}
 
 let allNews = [];
 let currentFilter = 'all';
@@ -339,7 +361,10 @@ async function fetchRSS(feedUrl) {
   for (const item of xml.querySelectorAll('item')) {
     const title = item.querySelector('title')?.textContent?.trim();
     const link = item.querySelector('link')?.textContent?.trim();
-    if (title && link && title.length > 5) items.push({ title, url: link });
+    if (title && link && title.length > 5) {
+      var desc = item.querySelector('description')?.textContent || item.getElementsByTagName('content:encoded')[0]?.textContent || '';
+      items.push({ title, url: link, summary: extractSummary(desc) });
+    }
     if (items.length >= 20) break;
   }
   return items;
@@ -361,7 +386,7 @@ async function startCrawl() {
   if (collected.length > 0) {
     let saved = 0;
     for (const item of collected) {
-      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url });
+      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url, summary: item.summary || null });
       if (!error) saved++;
     }
     await loadNews();
