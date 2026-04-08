@@ -104,6 +104,11 @@
   .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.4; }
   .empty-text { font-size: 16px; }
   .empty-sub { font-size: 13px; margin-top: 8px; }
+
+  .version-tabs { display: flex; gap: 4px; }
+  .version-tab { padding: 6px 14px; border-radius: 8px; font-size: 12px; font-family: var(--mono); text-decoration: none; color: var(--text3); border: 1px solid transparent; transition: all 0.2s; }
+  .version-tab:hover { color: var(--text2); border-color: var(--border); }
+  .version-tab.active { background: rgba(99,179,237,0.1); color: var(--blue); border-color: rgba(99,179,237,0.25); }
   footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 12px; color: var(--text3); font-family: var(--mono); }
   @media (max-width: 640px) {
     .hero h1 { font-size: 28px; }
@@ -122,6 +127,11 @@
           <div class="logo-text">IT 뉴스 수집기</div>
           <div class="logo-sub">RSS · Supabase · 무료</div>
         </div>
+      </div>
+      <div class="version-tabs">
+        <a class="version-tab active">v1 수집</a>
+        <a class="version-tab" href="/v2/index.html">v2 AI분석</a>
+        <a class="version-tab" href="/v3/index.html">v3 트렌드</a>
       </div>
       <div class="status-badge">
         <div class="status-dot"></div>
@@ -193,6 +203,18 @@ const SUPABASE_URL = 'https://jbtyhxhkzudbyguxluru.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpidHloeGhrenVkYnlndXhsdXJ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQxNzUxMjMsImV4cCI6MjA4OTc1MTEyM30.CbHlcAhOnx-Fwag1OwfO3BH5IupeFMxgil4Wm6F67AU';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+
+function extractSummary(html) {
+  if (!html) return '';
+  // strip CDATA / tags / entities
+  var t = String(html).replace(/<!\[CDATA\[|\]\]>/g,'').replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
+  if (!t) return '';
+  var sentences = t.split(/(?<=[.!?。…])\s+/).filter(Boolean);
+  var out = sentences.slice(0, 2).join(' ');
+  if (out.length > 160) out = out.slice(0, 157) + '...';
+  return out;
+}
 
 let crawling = false;
 
@@ -279,7 +301,8 @@ async function fetchRSS(feedUrl) {
     const title = item.querySelector('title')?.textContent?.trim();
     const link = item.querySelector('link')?.textContent?.trim();
     if (title && link && title.length > 5) {
-      items.push({ title, url: link });
+      var desc = item.querySelector('description')?.textContent || item.getElementsByTagName('content:encoded')[0]?.textContent || '';
+      items.push({ title, url: link, summary: extractSummary(desc) });
     }
     if (items.length >= 20) break;
   }
@@ -315,7 +338,7 @@ async function startCrawl() {
     log(`Supabase 저장 중...`, 'info');
     let saved = 0;
     for (const item of collected) {
-      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url });
+      const { error } = await db.from('news_list').insert({ title: item.title, url: item.url, summary: item.summary || null });
       if (!error) saved++;
     }
     log(`💾 ${saved}개 저장 완료!`, 'success');
