@@ -94,6 +94,12 @@
   .news-source { font-size: 10px; color: var(--text3); font-family: var(--mono); margin-top: 2px; }
   .news-summary { font-size: 13px; color: #cbd5e1; line-height: 1.55; margin-top: 6px; padding: 8px 10px; background: rgba(118,228,247,0.06); border-left: 2px solid rgba(118,228,247,0.4); border-radius: 6px; }
 
+  .news-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+  .news-count-badge { padding: 2px 10px; background: rgba(104,211,145,0.1); border: 1px solid rgba(104,211,145,0.2); border-radius: 20px; font-size: 11px; color: var(--green); font-family: var(--mono); }
+  .filter-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-tab { padding: 4px 12px; border-radius: 6px; font-size: 11px; font-family: var(--mono); cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text3); transition: all 0.2s; }
+  .filter-tab:hover { color: var(--text2); border-color: var(--border2); }
+  .filter-tab.active { background: rgba(104,211,145,0.1); color: var(--green); border-color: rgba(104,211,145,0.3); }
   footer { border-top: 1px solid var(--border); padding: 24px 0; text-align: center; font-size: 11px; color: var(--text3); font-family: var(--mono); }
 
   @media (max-width: 768px) {
@@ -198,7 +204,16 @@
 
       <!-- 최근 뉴스 목록 -->
       <div class="card card-full">
-        <div class="card-title"><span class="icon">📋</span> 최근 분석 뉴스</div>
+        <div class="news-header">
+          <div class="card-title" style="margin-bottom:0"><span class="icon">📋</span> 최근 분석 뉴스 <span class="news-count-badge" id="news-count">0개</span></div>
+          <div class="filter-tabs">
+            <button class="filter-tab active" data-filter="all" onclick="filterNews('all', this)">전체</button>
+            <button class="filter-tab" data-filter="positive" onclick="filterNews('positive', this)">긍정</button>
+            <button class="filter-tab" data-filter="neutral" onclick="filterNews('neutral', this)">중립</button>
+            <button class="filter-tab" data-filter="negative" onclick="filterNews('negative', this)">부정</button>
+            <button class="filter-tab" data-filter="unanalyzed" onclick="filterNews('unanalyzed', this)">미분석</button>
+          </div>
+        </div>
         <div class="news-list" id="news-list">로딩 중...</div>
       </div>
 
@@ -243,6 +258,8 @@ function extractSummary(html) {
 }
 
 let charts = {};
+let allNewsCache = [];
+let currentFilter = 'all';
 
 // ── 데이터 로드 ──────────────────────────────────────
 
@@ -262,7 +279,8 @@ async function loadAll() {
   renderSentimentDonut(news);
   renderBiasTable(news);
   renderDailyChart(news);
-  renderNewsList(news);
+  allNewsCache = news;
+  renderNewsList();
 }
 
 function updateStats(news) {
@@ -463,10 +481,25 @@ function renderDailyChart(news) {
 
 // ── 뉴스 목록 ────────────────────────────────────────
 
-function renderNewsList(news) {
+function filterNewsData(news, filter) {
+  if (filter === 'all') return news;
+  if (filter === 'unanalyzed') return news.filter(n => !n.sentiment);
+  return news.filter(n => n.sentiment === filter);
+}
+
+function filterNews(filter, btn) {
+  currentFilter = filter;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderNewsList();
+}
+
+function renderNewsList() {
   const el = document.getElementById('news-list');
-  const items = news.slice(0, 30);
-  if (!items.length) { el.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">뉴스 없음</div>'; return; }
+  const filtered = filterNewsData(allNewsCache, currentFilter);
+  const items = filtered.slice(0, 30);
+  document.getElementById('news-count').textContent = `${filtered.length}개`;
+  if (!items.length) { el.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">표시할 뉴스가 없습니다</div>'; return; }
 
   el.innerHTML = items.map(n => {
     const label = { positive: '긍정', negative: '부정', neutral: '중립' }[n.sentiment] || '';
