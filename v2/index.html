@@ -143,10 +143,6 @@
         <a class="version-tab active">v2 AI분석</a>
         <a class="version-tab" href="/v3/index.html">v3 트렌드</a>
       </div>
-      <div class="status-badge">
-        <div class="status-dot"></div>
-        <span id="conn-status">연결 중...</span>
-      </div>
     </div>
   </div>
 </header>
@@ -252,9 +248,9 @@ async function checkConnection() {
   try {
     const { error } = await db.from('news_list').select('id', { count: 'exact', head: true });
     if (error) throw error;
-    document.getElementById('conn-status').textContent = 'Supabase 연결됨';
+    var _c = document.getElementById('conn-status'); if (_c) _c.textContent = 'Supabase 연결됨';
   } catch(e) {
-    document.getElementById('conn-status').textContent = '연결 오류';
+    var _c = document.getElementById('conn-status'); if (_c) _c.textContent = '연결 오류';
   }
 }
 
